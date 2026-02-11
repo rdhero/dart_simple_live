@@ -7,7 +7,6 @@ on:
       - "v*"
 
 jobs:
-
   build:
     runs-on: macos-latest
     permissions:
@@ -15,26 +14,30 @@ jobs:
 
     steps:
       # 拉代码
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
           ref: master
 
-      # Java
-      - uses: actions/setup-java@v4
+      # 安装 Java
+      - name: Setup Java
+        uses: actions/setup-java@v4
         with:
-          distribution: "zulu"
+          distribution: zulu
           java-version: "17"
-          cache: "gradle"
 
-      # Flutter
-      - uses: subosito/flutter-action@v2
+      # 安装 Flutter
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
         with:
           flutter-version: "3.38.x"
           cache: true
 
       # 开启桌面支持
-      - run: flutter config --enable-macos-desktop
-      - run: flutter config --enable-windows-desktop
+      - name: Enable Desktop
+        run: |
+          flutter config --enable-macos-desktop
+          flutter config --enable-windows-desktop
 
       # 获取依赖
       - name: Restore Packages
@@ -46,14 +49,14 @@ jobs:
       - name: Install flutter_distributor
         run: dart pub global activate flutter_distributor
 
-      # ------------------ ANDROID ------------------
+      # ================= ANDROID =================
 
-      - name: Build APK
+      - name: Build Android (Debug - Installable)
         run: |
           cd simple_live_app
-          flutter build apk --release --split-per-abi
+          flutter build apk --debug
 
-      # ------------------ iOS ------------------
+      # ================= iOS =================
 
       - name: Build iOS
         run: |
@@ -69,20 +72,20 @@ jobs:
           zip -r ios_no_sign.ipa Payload
           cd ../../..
 
-      # ------------------ WINDOWS ------------------
+      # ================= WINDOWS =================
 
       - name: Build Windows
         run: |
           cd simple_live_app
           flutter_distributor package --platform windows --targets zip --skip-clean
 
-      # ------------------ 生成版本号 ------------------
+      # ================= 版本号 =================
 
       - name: Get version from tag
         id: version
         run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
 
-      # ------------------ 上传 Release ------------------
+      # ================= 发布 =================
 
       - name: Upload Release
         uses: softprops/action-gh-release@v1
