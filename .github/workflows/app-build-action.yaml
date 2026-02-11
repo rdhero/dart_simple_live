@@ -6,92 +6,84 @@ on:
     tags:
       - "v*"
 
+permissions:
+  contents: write
+
 jobs:
-  build:
+
+  # ================= ANDROID + IOS =================
+  build-mobile:
     runs-on: macos-latest
-    permissions:
-      contents: write
 
     steps:
-      # 拉代码
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      # 安装 Java
-      - name: Setup Java
-        uses: actions/setup-java@v4
+      - uses: actions/setup-java@v4
         with:
           distribution: zulu
           java-version: "17"
 
-      # 安装 Flutter
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
+      - uses: subosito/flutter-action@v2
         with:
           flutter-version: "3.38.x"
           cache: true
 
-      # 开启桌面支持
-      - name: Enable Desktop
-        run: |
+      - run: |
           flutter config --enable-macos-desktop
-          flutter config --enable-windows-desktop
 
-      # 获取依赖
-      - name: Restore Packages
-        run: |
+      - run: |
           cd simple_live_app
           flutter pub get
 
-      # 安装 flutter_distributor
-      - name: Install flutter_distributor
-        run: dart pub global activate flutter_distributor
-
-      # ================= ANDROID =================
-
-      - name: Build Android (Debug - Installable)
-        run: |
+      # Android
+      - run: |
           cd simple_live_app
           flutter build apk --debug
 
-      # ================= iOS =================
-
-      - name: Build iOS
-        run: |
+      # iOS
+      - run: |
           cd simple_live_app
           flutter build ios --release --no-codesign
-
-      - name: Create IPA
-        run: |
-          cd simple_live_app
           mkdir -p build/ios/iphoneos/Payload
           cp -R build/ios/iphoneos/Runner.app build/ios/iphoneos/Payload/Runner.app
           cd build/ios/iphoneos
           zip -r ios_no_sign.ipa Payload
-          cd ../../..
 
-      # ================= WINDOWS =================
-
-      - name: Build Windows
-        run: |
-          cd simple_live_app
-          flutter_distributor package --platform windows --targets zip --skip-clean
-
-      # ================= 版本号 =================
-
-      - name: Get version from tag
-        id: version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-
-      # ================= 发布 =================
-
-      - name: Upload Release
-        uses: softprops/action-gh-release@v1
+      - uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
         with:
-          name: "${{ steps.version.outputs.VERSION }}"
-          generate_release_notes: true
-          token: ${{ secrets.GITHUB_TOKEN }}
           files: |
             simple_live_app/build/app/outputs/flutter-apk/*.apk
             simple_live_app/build/ios/iphoneos/ios_no_sign.ipa
-            simple_live_app/build/dist/*/*.zip
+
+
+  # ================= WINDOWS =================
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.38.x"
+          cache: true
+
+      - run: flutter config --enable-windows-desktop
+
+      - run: |
+          cd simple_live_app
+          flutter pub get
+
+      - run: |
+          cd simple_live_app
+          flutter build windows
+
+      - run: |
+          cd simple_live_app/build/windows/x64/runner/Release
+          powershell Compress-Archive -Path * -DestinationPath simple_live_windows.zip
+
+      - uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: simple_live_app/build/windows/x64/runner/Release/simple_live_windows.zip
